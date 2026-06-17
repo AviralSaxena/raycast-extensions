@@ -213,7 +213,10 @@ class CommandView extends React.Component<Record<string, never>, CommandState> {
     });
   }
 
-  async refreshApps(forceReload = false) {
+  async refreshApps(
+    forceReload = false,
+    options?: { suppressToast?: boolean },
+  ) {
     this.setState({
       isLoading: true,
       error: null,
@@ -224,13 +227,15 @@ class CommandView extends React.Component<Record<string, never>, CommandState> {
       exportInFlight !== null &&
       exportInFlight.bcuPath === this.bcuPath;
 
-    const toast = reusingInFlightRequest
+    const toast = options?.suppressToast
       ? null
-      : await showToast({
-          style: Toast.Style.Animated,
-          title: "Refreshing applications",
-          message: "Exporting installed software from BC Uninstaller",
-        });
+      : reusingInFlightRequest
+        ? null
+        : await showToast({
+            style: Toast.Style.Animated,
+            title: "Refreshing applications",
+            message: "Exporting installed software from BC Uninstaller",
+          });
 
     try {
       const exportResult = await getApplicationsExport(
@@ -249,6 +254,7 @@ class CommandView extends React.Component<Record<string, never>, CommandState> {
         toast.title = "Applications refreshed";
         toast.message = `${nextApps.length} apps loaded`;
       }
+      return true;
     } catch (caught) {
       const message = getErrorMessage(caught);
       this.setState({
@@ -260,6 +266,7 @@ class CommandView extends React.Component<Record<string, never>, CommandState> {
         toast.title = "Failed to refresh applications";
         toast.message = message;
       }
+      return false;
     } finally {
       this.setState({
         isLoading: false,
@@ -374,9 +381,13 @@ class CommandView extends React.Component<Record<string, never>, CommandState> {
       this.setState({
         queue: {},
       });
+      invalidateApplicationsExportCache(this.bcuPath);
+      const refreshed = await this.refreshApps(true, { suppressToast: true });
       toast.style = Toast.Style.Success;
-      toast.title = "Batch uninstall launched";
-      toast.message = `Quiet: ${summary.quietCount}, non-quiet: ${summary.nonQuietCount}`;
+      toast.title = "Batch uninstall complete";
+      toast.message = refreshed
+        ? `Quiet: ${summary.quietCount}, non-quiet: ${summary.nonQuietCount}. Application list refreshed.`
+        : `Quiet: ${summary.quietCount}, non-quiet: ${summary.nonQuietCount}. Refresh the app list if removed apps are still visible.`;
     } catch (caught) {
       const message = getErrorMessage(caught);
       toast.style = Toast.Style.Failure;
@@ -903,6 +914,15 @@ function getApplicationsExport(
   };
 
   return promise;
+}
+
+function invalidateApplicationsExportCache(preferencePath: string) {
+  if (
+    lastExportResult !== null &&
+    lastExportResult.bcuPath === preferencePath
+  ) {
+    lastExportResult = null;
+  }
 }
 
 async function uninstallQueuedAppsWithBcu(
