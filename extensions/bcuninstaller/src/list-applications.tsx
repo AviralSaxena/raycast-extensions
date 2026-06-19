@@ -26,11 +26,6 @@ import os from "node:os";
 import path from "node:path";
 import React from "react";
 
-type Preferences = {
-  bcuPath: string;
-  autoRemoveHighConfidenceJunk: boolean;
-};
-
 type InstalledApp = {
   id: string;
   displayName: string;
@@ -1065,7 +1060,7 @@ function toPowerShellLiteral(value: string) {
 function parseExitCode(stdout: string) {
   const match = stdout.match(/__EXITCODE__=(\d+)/);
   if (!match) {
-    return 0;
+    return -1;
   }
 
   return Number(match[1]);
